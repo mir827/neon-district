@@ -1,0 +1,225 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #eefaff;
+  background: #07101d;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+}
+button,
+input {
+  font: inherit;
+}
+#loading,
+.fatal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: radial-gradient(circle, #163451, #050912);
+  letter-spacing: 0.22em;
+  font-size: 2rem;
+}
+#loading span {
+  font-size: 0.8rem;
+  color: #7ee8ff;
+}
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  padding: max(18px, env(safe-area-inset-top)) 22px;
+  text-shadow: 0 2px 8px #000;
+}
+.brand {
+  font-size: 22px;
+  letter-spacing: 0.16em;
+  color: #fff;
+}
+.brand b {
+  color: #1de9d0;
+}
+.top {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  display: flex;
+  gap: 9px;
+}
+.top > div,
+#vehicle {
+  padding: 8px 12px;
+  background: #06101dcc;
+  border: 1px solid #2a657b;
+  border-radius: 8px;
+}
+.mission {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  transform: translateX(-50%);
+  min-width: 280px;
+  padding: 9px 15px;
+  text-align: center;
+  background: #06101dcc;
+  border-bottom: 2px solid #25dbc7;
+}
+.mission span {
+  display: block;
+  font-size: 12px;
+  color: #bfeef2;
+  margin-top: 3px;
+}
+#vehicle {
+  position: absolute;
+  bottom: 25px;
+  right: 24px;
+  font-size: 20px;
+}
+#message {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: #09131ee0;
+  color: #ffe58c;
+}
+#stats {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font: 12px monospace;
+}
+#minimap {
+  position: fixed;
+  right: 22px;
+  top: 75px;
+  width: 180px;
+  height: 180px;
+  border: 2px solid #55dfea;
+  border-radius: 50%;
+  opacity: 0.9;
+}
+#pause {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  place-items: center;
+  background: #020712d9;
+}
+#pause.visible {
+  display: grid;
+}
+#pause > div {
+  width: min(440px, 90vw);
+  padding: 28px;
+  border: 1px solid #3ca7b7;
+  background: #0a1826;
+  box-shadow: 0 0 50px #00bcd433;
+}
+#pause label {
+  display: flex;
+  justify-content: space-between;
+  margin: 14px 0;
+}
+#pause button,
+.fatal button {
+  margin: 10px 6px 0 0;
+  padding: 9px 14px;
+  color: #06101d;
+  background: #66eadb;
+  border: 0;
+  border-radius: 4px;
+}
+#mobile {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+#stick {
+  position: absolute;
+  left: 35px;
+  bottom: 45px;
+  width: 110px;
+  height: 110px;
+  border: 2px solid #a9ffff88;
+  border-radius: 50%;
+  background: #09203566;
+  pointer-events: auto;
+  touch-action: none;
+}
+#stick i {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  left: 31px;
+  top: 31px;
+  background: #4ae7d9bb;
+  border-radius: 50%;
+}
+.buttons {
+  position: absolute;
+  right: 20px;
+  bottom: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  pointer-events: auto;
+}
+.buttons button {
+  width: 78px;
+  height: 55px;
+  border: 1px solid #84fff3;
+  border-radius: 14px;
+  color: #fff;
+  background: #0a223bcc;
+  touch-action: manipulation;
+}
+@media (max-width: 700px) {
+  .brand {
+    font-size: 14px;
+  }
+  .top {
+    font-size: 11px;
+    top: 12px;
+    right: 8px;
+  }
+  .mission {
+    top: 50px;
+    min-width: 220px;
+    font-size: 12px;
+  }
+  #minimap {
+    width: 105px;
+    height: 105px;
+    right: 8px;
+    top: 88px;
+  }
+  #vehicle {
+    bottom: 155px;
+    right: 10px;
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
