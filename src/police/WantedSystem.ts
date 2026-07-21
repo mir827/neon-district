@@ -18,6 +18,18 @@ export class WantedSystem {
     return this.level;
   }
 
+  public reportCrime(
+    type: 'vehicle-theft' | 'collision' | 'restricted-zone' | 'ignored-stop',
+  ): number {
+    const severity = {
+      'vehicle-theft': 1,
+      collision: 1,
+      'restricted-zone': 2,
+      'ignored-stop': 2,
+    }[type];
+    return this.addCrime(severity);
+  }
+
   public update(delta: number, visibleToPolice: boolean): number {
     if (visibleToPolice || this.level === 0) {
       this.unseenSeconds = 0;

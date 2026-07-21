@@ -16,6 +16,13 @@ describe('WantedSystem', () => {
     wanted.update(20, true);
     expect(wanted.getLevel()).toBe(4);
   });
+  it('maps gameplay crime triggers to wanted severity', () => {
+    const wanted = new WantedSystem();
+    expect(wanted.reportCrime('vehicle-theft')).toBe(1);
+    expect(wanted.reportCrime('collision')).toBe(2);
+    expect(wanted.reportCrime('restricted-zone')).toBe(4);
+    expect(wanted.reportCrime('ignored-stop')).toBe(5);
+  });
 });
 
 const mission: MissionDefinition = {

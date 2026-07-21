@@ -67,8 +67,8 @@ export class VehicleManager {
     return true;
   }
 
-  public update(delta: number, input: InputManager, player: Player): void {
-    if (!this.active) return;
+  public update(delta: number, input: InputManager, player: Player): number {
+    if (!this.active) return 0;
     const throttle = Number(input.isDown('KeyW')) - Number(input.isDown('KeyS')) - input.moveY;
     const steering = Number(input.isDown('KeyA')) - Number(input.isDown('KeyD')) - input.moveX;
     const before = this.active.mesh.position.clone();
@@ -81,7 +81,10 @@ export class VehicleManager {
       const impact = Math.abs(this.active.speed);
       this.active.mesh.position.copy(before);
       this.active.collide(impact);
+      player.body.position.set(this.active.mesh.position.x, 2, this.active.mesh.position.z);
+      return impact;
     }
     player.body.position.set(this.active.mesh.position.x, 2, this.active.mesh.position.z);
+    return 0;
   }
 }

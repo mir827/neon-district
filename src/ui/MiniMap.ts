@@ -13,6 +13,7 @@ export class MiniMap {
     player: THREE.Vector3,
     heading: number,
     police: THREE.Vector3[],
+    chaseRadius: number,
     objective?: { x: number; z: number },
   ): void {
     const ctx = this.context;
@@ -52,6 +53,19 @@ export class MiniMap {
       ctx.beginPath();
       ctx.arc((unit.x + 210) * scale, (unit.z + 210) * scale, 3, 0, Math.PI * 2);
       ctx.fill();
+    }
+    if (chaseRadius > 0) {
+      ctx.strokeStyle = '#447dff88';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(
+        (player.x + 210) * scale,
+        (player.z + 210) * scale,
+        chaseRadius * scale,
+        0,
+        Math.PI * 2,
+      );
+      ctx.stroke();
     }
     if (objective) {
       ctx.strokeStyle = '#ffd166';

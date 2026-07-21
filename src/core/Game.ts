@@ -17,6 +17,7 @@ import { MiniMap } from '../ui/MiniMap';
 import { MobileControls } from '../ui/MobileControls';
 import { PauseMenu } from '../ui/PauseMenu';
 import { VehicleManager } from '../vehicles/VehicleManager';
+import { INTERIORS } from '../world/CityGenerator';
 import { World } from '../world/World';
 
 export class Game {
@@ -46,6 +47,9 @@ export class Game {
   private frames = 0;
   private statTime = 0;
   private fps = 0;
+  private restrictedAlerted = false;
+  private stopOrderSeconds = 0;
+  private ignoredStopAlerted = false;
 
   public constructor(root: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({
@@ -117,7 +121,11 @@ export class Game {
     if (this.input.consume('Escape')) this.pause.toggle();
     if (!this.pause.paused) {
       this.playerController.update(this.playerCamera.yaw);
-      this.vehicles.update(delta, this.input, this.player);
+      const impact = this.vehicles.update(delta, this.input, this.player);
+      if (impact > 12) {
+        this.wanted.reportCrime('collision');
+        this.hud.notify('위험 운전 신고 접수');
+      }
       this.world.update(delta);
       this.player.sync();
       const focus = this.vehicles.active?.mesh.position ?? this.player.mesh.position;
@@ -127,11 +135,14 @@ export class Game {
       if (this.input.consume('KeyE')) {
         const handled = this.vehicles.interact(this.player);
         if (!handled) {
-          const speech = this.npcs.interact(focus);
-          if (speech) this.hud.notify(speech);
+          const transitioned = this.tryInteriorTransition(focus);
+          if (!transitioned) {
+            const speech = this.npcs.interact(focus);
+            if (speech) this.hud.notify(speech);
+          }
         } else {
           this.audio.tone(520);
-          if (this.vehicles.active) this.wanted.addCrime(1);
+          if (this.vehicles.active) this.wanted.reportCrime('vehicle-theft');
         }
       }
       if (this.input.consume('KeyF') && !this.missions.active) {
@@ -146,7 +157,13 @@ export class Game {
       if (focus.distanceTo(new THREE.Vector3(-65, 1, -65)) < 5) {
         this.player.health.heal(25 * delta);
       }
+      if (focus.distanceTo(new THREE.Vector3(78, 1, -55)) < 24 && !this.restrictedAlerted) {
+        this.wanted.reportCrime('restricted-zone');
+        this.restrictedAlerted = true;
+        this.hud.notify('제한구역 침입 경보');
+      }
       const visible = this.police.update(delta, focus, this.wanted.getLevel());
+      this.trackStopOrder(delta, visible);
       this.wanted.update(delta, visible);
       const result = this.missions.update(delta, {
         position: focus,
@@ -189,6 +206,7 @@ export class Game {
       focus,
       this.vehicles.active?.mesh.rotation.y ?? this.player.mesh.rotation.y,
       this.police.positions(),
+      this.wanted.getLevel() > 0 ? 45 + this.wanted.getLevel() * 8 : 0,
       target,
     );
     this.renderer.render(this.scene, this.camera);
@@ -200,6 +218,37 @@ export class Game {
     this.renderer.shadowMap.enabled = settings.shadows;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2) * settings.resolutionScale);
     this.resize();
+  }
+
+  private tryInteriorTransition(focus: THREE.Vector3): boolean {
+    for (const interior of INTERIORS) {
+      if (focus.distanceTo(interior.entrance) < 7) {
+        this.player.setPosition(interior.inside.x, interior.inside.y, interior.inside.z);
+        this.hud.notify(`${interior.name} 입장`);
+        return true;
+      }
+      if (focus.distanceTo(interior.exit) < 7) {
+        this.player.setPosition(interior.entrance.x, interior.entrance.y, interior.entrance.z);
+        this.hud.notify(`${interior.name} 퇴장`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private trackStopOrder(delta: number, visible: boolean): void {
+    const speed = Math.abs(this.vehicles.active?.speed ?? 0);
+    if (this.wanted.getLevel() === 0 || !visible || speed < 12) {
+      this.stopOrderSeconds = 0;
+      this.ignoredStopAlerted = false;
+      return;
+    }
+    this.stopOrderSeconds += delta;
+    if (this.stopOrderSeconds > 4 && !this.ignoredStopAlerted) {
+      this.wanted.reportCrime('ignored-stop');
+      this.ignoredStopAlerted = true;
+      this.hud.notify('정지 명령 불응');
+    }
   }
   private persist(): void {
     const p = this.player.body.position;

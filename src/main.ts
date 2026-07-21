@@ -5,6 +5,15 @@ const root = document.querySelector<HTMLElement>('#app');
 if (!root) throw new Error('게임 루트 요소를 찾을 수 없습니다.');
 
 try {
+  root.innerHTML =
+    '<section id="loading"><span>0%</span><progress max="100" value="0"></progress></section>';
+  const progress = root.querySelector<HTMLProgressElement>('progress');
+  const label = root.querySelector<HTMLElement>('#loading span');
+  for (const value of [25, 55, 85, 100]) {
+    if (progress) progress.value = value;
+    if (label) label.textContent = `${value}%`;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
   const canvas = document.createElement('canvas');
   const supported = Boolean(window.WebGL2RenderingContext && canvas.getContext('webgl2'));
   if (!supported)

@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 
 export type CityLandmark = { name: string; x: number; z: number; color: number };
+export type District = { id: string; name: string; x: number; z: number; radius: number };
+export type Interior = {
+  id: string;
+  name: string;
+  entrance: THREE.Vector3;
+  inside: THREE.Vector3;
+  exit: THREE.Vector3;
+};
+
 export const LANDMARKS: CityLandmark[] = [
   { name: '도심', x: 0, z: 0, color: 0x19d3ff },
   { name: '주거', x: -112, z: 78, color: 0xffc857 },
@@ -8,6 +17,34 @@ export const LANDMARKS: CityLandmark[] = [
   { name: '공원', x: -80, z: -80, color: 0x55d68b },
   { name: '경찰서', x: 78, z: -55, color: 0x4c78ff },
   { name: '주차장', x: 28, z: 116, color: 0xbda7ff },
+  { name: '항만', x: 155, z: -135, color: 0x29a383 },
+];
+
+export const DISTRICTS: District[] = [
+  { id: 'midtown', name: '도심', x: 0, z: 0, radius: 72 },
+  { id: 'residential', name: '주거', x: -112, z: 78, radius: 54 },
+  { id: 'industrial', name: '공업', x: 118, z: 82, radius: 54 },
+  { id: 'park', name: '공원', x: -80, z: -80, radius: 48 },
+  { id: 'civic', name: '경찰서', x: 78, z: -55, radius: 44 },
+  { id: 'garage', name: '주차장', x: 28, z: 116, radius: 42 },
+  { id: 'harbor', name: '항만', x: 155, z: -135, radius: 46 },
+];
+
+export const INTERIORS: Interior[] = [
+  {
+    id: 'clinic',
+    name: '응급 클리닉',
+    entrance: new THREE.Vector3(-65, 1, -65),
+    inside: new THREE.Vector3(-185, 2, 178),
+    exit: new THREE.Vector3(-178, 1, 178),
+  },
+  {
+    id: 'garage-office',
+    name: '정비소 사무실',
+    entrance: new THREE.Vector3(30, 1, 116),
+    inside: new THREE.Vector3(178, 2, 178),
+    exit: new THREE.Vector3(170, 1, 178),
+  },
 ];
 
 /** Generates an original modular low-poly city using only primitive geometry. */
@@ -34,6 +71,7 @@ export class CityGenerator {
     this.makeBuildings(scene);
     this.makePark(scene);
     this.makeLandmarks(scene);
+    this.makeInteriors(scene);
   }
 
   private makeRoads(scene: THREE.Scene): void {
@@ -81,8 +119,37 @@ export class CityGenerator {
           mesh.receiveShadow = true;
           scene.add(mesh);
           this.colliders.push(new THREE.Box3().setFromObject(mesh));
+          this.addWindowGrid(scene, mesh.position, width, height, depth);
         }
       }
+  }
+
+  private addWindowGrid(
+    scene: THREE.Scene,
+    position: THREE.Vector3,
+    width: number,
+    height: number,
+    depth: number,
+  ): void {
+    const rows = Math.max(2, Math.floor(height / 8));
+    const columns = Math.max(2, Math.floor(width / 5));
+    const geometry = new THREE.PlaneGeometry(1.1, 1.6);
+    const material = new THREE.MeshBasicMaterial({ color: 0x8af7ff });
+    const windows = new THREE.InstancedMesh(geometry, material, rows * columns);
+    let index = 0;
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const matrix = new THREE.Matrix4().setPosition(
+          position.x - width / 2 + 3 + column * ((width - 6) / Math.max(1, columns - 1)),
+          3 + row * 5,
+          position.z + depth / 2 + 0.03,
+        );
+        windows.setMatrixAt(index, matrix);
+        index += 1;
+      }
+    }
+    windows.instanceMatrix.needsUpdate = true;
+    scene.add(windows);
   }
 
   private makePark(scene: THREE.Scene): void {
@@ -92,32 +159,60 @@ export class CityGenerator {
     );
     park.position.set(-80, 0.12, -80);
     scene.add(park);
+    const trunks = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.5, 0.7, 4),
+      new THREE.MeshStandardMaterial({ color: 0x61452d }),
+      12,
+    );
+    const crowns = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(3, 7, 6),
+      new THREE.MeshStandardMaterial({ color: 0x36a26b }),
+      12,
+    );
     for (let i = 0; i < 12; i += 1) {
-      const tree = new THREE.Group();
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.5, 0.7, 4),
-        new THREE.MeshStandardMaterial({ color: 0x61452d }),
-      );
-      const crown = new THREE.Mesh(
-        new THREE.ConeGeometry(3, 7, 6),
-        new THREE.MeshStandardMaterial({ color: 0x36a26b }),
-      );
-      crown.position.y = 5;
-      tree.add(trunk, crown);
-      tree.position.set(-104 + (i % 4) * 16, 2, -104 + Math.floor(i / 4) * 20);
-      scene.add(tree);
+      const x = -104 + (i % 4) * 16;
+      const z = -104 + Math.floor(i / 4) * 20;
+      trunks.setMatrixAt(i, new THREE.Matrix4().setPosition(x, 2, z));
+      crowns.setMatrixAt(i, new THREE.Matrix4().setPosition(x, 7, z));
     }
+    trunks.instanceMatrix.needsUpdate = true;
+    crowns.instanceMatrix.needsUpdate = true;
+    scene.add(trunks, crowns);
   }
 
   private makeLandmarks(scene: THREE.Scene): void {
     for (const landmark of LANDMARKS) {
+      const lod = new THREE.LOD();
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(4, 0.35, 8, 24),
         new THREE.MeshBasicMaterial({ color: landmark.color }),
       );
       ring.rotation.x = Math.PI / 2;
-      ring.position.set(landmark.x, 0.55, landmark.z);
-      scene.add(ring);
+      const marker = new THREE.Mesh(
+        new THREE.BoxGeometry(5.5, 0.3, 5.5),
+        new THREE.MeshBasicMaterial({ color: landmark.color }),
+      );
+      lod.addLevel(ring, 0);
+      lod.addLevel(marker, 95);
+      lod.position.set(landmark.x, 0.55, landmark.z);
+      scene.add(lod);
+    }
+  }
+
+  private makeInteriors(scene: THREE.Scene): void {
+    const material = new THREE.MeshStandardMaterial({ color: 0x18283a, roughness: 0.9 });
+    for (const interior of INTERIORS) {
+      const room = new THREE.Mesh(new THREE.BoxGeometry(24, 0.4, 18), material);
+      room.position.copy(interior.inside);
+      room.position.y = 0.2;
+      scene.add(room);
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(4, 0.2, 1),
+        new THREE.MeshBasicMaterial({ color: 0xffd166 }),
+      );
+      sign.position.copy(interior.entrance);
+      sign.position.y = 0.6;
+      scene.add(sign);
     }
   }
 }
