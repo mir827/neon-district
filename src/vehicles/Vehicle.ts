@@ -15,6 +15,11 @@ export class Vehicle {
   public speed = 0;
   public durability = 100;
   public occupied = false;
+  private readonly bodyRoot = new THREE.Group();
+  private readonly wheels: THREE.Group[] = [];
+  private readonly frontWheels: THREE.Group[] = [];
+  private wheelSpin = 0;
+  private lean = 0;
 
   public constructor(
     public readonly spec: VehicleSpec,
@@ -53,16 +58,16 @@ export class Vehicle {
     plate.position.set(0, 0.13, 2.83);
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.28), darkTrim);
     spoiler.position.set(0, 1.08, -2.75);
-    this.mesh.add(body, hood, trunk, cabin, roof, grille, plate, spoiler);
+    this.bodyRoot.add(body, hood, trunk, cabin, roof, grille, plate, spoiler);
     for (const x of [-1.08, 1.08]) {
       const headlamp = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.18, 0.06), lightFront);
       headlamp.position.set(x, 0.48, 2.78);
       const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.06), lightRear);
       tail.position.set(x, 0.5, -2.78);
-      this.mesh.add(headlamp, tail);
+      this.bodyRoot.add(headlamp, tail);
       const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.38), darkTrim);
       mirror.position.set(x * 1.38, 1.1, 0.72);
-      this.mesh.add(mirror);
+      this.bodyRoot.add(mirror);
     }
     for (const x of [-1.5, 1.5])
       for (const z of [-1.75, 1.75]) {
@@ -77,7 +82,10 @@ export class Vehicle {
         wheelGroup.add(wheel, rim);
         wheelGroup.position.set(x, -0.45, z);
         this.mesh.add(wheelGroup);
+        this.wheels.push(wheelGroup);
+        if (z > 0) this.frontWheels.push(wheelGroup);
       }
+    this.mesh.add(this.bodyRoot);
     this.mesh.traverse((part) => {
       if (part instanceof THREE.Mesh) {
         part.castShadow = true;
@@ -90,6 +98,7 @@ export class Vehicle {
   }
 
   public drive(throttle: number, steering: number, brake: boolean, delta: number): void {
+    const previousSpeed = this.speed;
     const target = throttle * this.spec.maxSpeed;
     this.speed = THREE.MathUtils.damp(
       this.speed,
@@ -107,10 +116,36 @@ export class Vehicle {
     this.mesh.translateZ(this.speed * delta);
     this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x, -202, 202);
     this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, -202, 202);
+    this.animateChassis(delta, steering, previousSpeed);
   }
 
   public collide(impact: number): void {
     this.durability = calculateVehicleDamage(this.durability, impact);
     this.speed *= -0.15;
+    this.lean = THREE.MathUtils.clamp(impact * 0.018, -0.22, 0.22);
+  }
+
+  private animateChassis(delta: number, steering: number, previousSpeed: number): void {
+    this.wheelSpin += this.speed * delta * 1.85;
+    const steerAngle = THREE.MathUtils.clamp(steering, -1, 1) * 0.42;
+    const accelerationPitch = THREE.MathUtils.clamp(
+      (this.speed - previousSpeed) * 0.018,
+      -0.08,
+      0.08,
+    );
+    const targetLean = -steering * Math.min(0.22, Math.abs(this.speed) * 0.012);
+    this.lean = THREE.MathUtils.damp(this.lean, targetLean, 6.5, delta);
+    this.bodyRoot.rotation.z = this.lean;
+    this.bodyRoot.rotation.x = THREE.MathUtils.damp(
+      this.bodyRoot.rotation.x,
+      -accelerationPitch,
+      6,
+      delta,
+    );
+    this.bodyRoot.position.y =
+      0.02 + Math.sin(this.wheelSpin * 0.35) * Math.min(0.035, Math.abs(this.speed) * 0.0015);
+    for (const wheel of this.wheels) wheel.rotation.x = this.wheelSpin;
+    for (const wheel of this.frontWheels)
+      wheel.rotation.y = THREE.MathUtils.damp(wheel.rotation.y, steerAngle, 10, delta);
   }
 }

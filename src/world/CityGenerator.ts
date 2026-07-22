@@ -55,7 +55,7 @@ export class CityGenerator {
   public build(scene: THREE.Scene): void {
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(420, 420),
-      new THREE.MeshStandardMaterial({ color: 0x182232, roughness: 0.98 }),
+      new THREE.MeshStandardMaterial({ color: 0x1b2731, roughness: 0.96 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -67,6 +67,7 @@ export class CityGenerator {
     water.rotation.x = -Math.PI / 2;
     water.position.set(0, -0.3, -250);
     scene.add(water);
+    this.addGroundVariation(scene);
     this.addHarborDetails(scene);
     this.makeRoads(scene);
     this.makeBuildings(scene);
@@ -144,7 +145,7 @@ export class CityGenerator {
   private makeBuildings(scene: THREE.Scene): void {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const materials = [0x30475e, 0x3f4d67, 0x4d426d, 0x315c60].map(
-      (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.75 }),
+      (color) => new THREE.MeshStandardMaterial({ color, metalness: 0.08, roughness: 0.78 }),
     );
     for (let gx = -2; gx <= 2; gx += 1)
       for (let gz = -2; gz <= 2; gz += 1) {
@@ -166,6 +167,7 @@ export class CityGenerator {
           this.colliders.push(new THREE.Box3().setFromObject(mesh));
           this.addWindowGrid(scene, mesh.position, width, height, depth);
           this.addFacadeDetails(scene, mesh.position, width, height, depth, i);
+          this.addStreetProps(scene, mesh.position, width, depth, gx + gz + i);
         }
       }
   }
@@ -180,7 +182,11 @@ export class CityGenerator {
     const rows = Math.max(2, Math.floor(height / 8));
     const columns = Math.max(2, Math.floor(width / 5));
     const geometry = new THREE.PlaneGeometry(1.1, 1.6);
-    const material = new THREE.MeshBasicMaterial({ color: 0x8af7ff });
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x8af7ff,
+      transparent: true,
+      opacity: 0.82,
+    });
     const windows = new THREE.InstancedMesh(geometry, material, rows * columns);
     let index = 0;
     for (let row = 0; row < rows; row += 1) {
@@ -260,8 +266,15 @@ export class CityGenerator {
     for (let i = 0; i < 12; i += 1) {
       const x = -104 + (i % 4) * 16;
       const z = -104 + Math.floor(i / 4) * 20;
-      trunks.setMatrixAt(i, new THREE.Matrix4().setPosition(x, 2, z));
-      crowns.setMatrixAt(i, new THREE.Matrix4().setPosition(x, 7, z));
+      const lean = ((i % 3) - 1) * 0.08;
+      const trunkMatrix = new THREE.Matrix4()
+        .makeRotationZ(lean)
+        .setPosition(x + ((i * 7) % 5) - 2, 2, z + ((i * 11) % 5) - 2);
+      trunks.setMatrixAt(i, trunkMatrix);
+      const crownMatrix = new THREE.Matrix4()
+        .makeScale(0.82 + (i % 4) * 0.08, 0.9 + (i % 3) * 0.1, 0.82 + ((i + 2) % 4) * 0.08)
+        .setPosition(x + ((i * 7) % 5) - 2, 7, z + ((i * 11) % 5) - 2);
+      crowns.setMatrixAt(i, crownMatrix);
     }
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
@@ -276,6 +289,14 @@ export class CityGenerator {
       bench.position.set(-80, 0.7, z);
       bench.castShadow = true;
       scene.add(bench);
+    }
+    const shrubMat = new THREE.MeshStandardMaterial({ color: 0x4bb779, roughness: 0.88 });
+    for (let i = 0; i < 18; i += 1) {
+      const shrub = new THREE.Mesh(new THREE.SphereGeometry(1.1 + (i % 3) * 0.25, 8, 6), shrubMat);
+      shrub.scale.y = 0.55;
+      shrub.position.set(-105 + ((i * 13) % 50), 0.72, -105 + ((i * 17) % 50));
+      shrub.castShadow = true;
+      scene.add(shrub);
     }
   }
 
@@ -334,6 +355,57 @@ export class CityGenerator {
         bollard.castShadow = true;
         scene.add(bollard);
       }
+    }
+    const buoyMat = new THREE.MeshBasicMaterial({ color: 0xff715b });
+    for (const x of [-160, -90, -15, 70, 145]) {
+      const buoy = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 1.4, 10), buoyMat);
+      buoy.position.set(x, 0.15, -242 + (x % 3) * 5);
+      buoy.rotation.z = (x % 2) * 0.12;
+      scene.add(buoy);
+    }
+  }
+
+  private addGroundVariation(scene: THREE.Scene): void {
+    const patchMaterials = [0x213142, 0x1f352e, 0x25313a, 0x2a3040].map(
+      (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.98 }),
+    );
+    for (let i = 0; i < 34; i += 1) {
+      const patch = new THREE.Mesh(
+        new THREE.CircleGeometry(4 + (i % 5) * 1.8, 9),
+        patchMaterials[i % patchMaterials.length],
+      );
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(-190 + ((i * 37) % 380), 0.012, -185 + ((i * 53) % 370));
+      patch.scale.set(1.5 + (i % 4) * 0.35, 0.7 + ((i + 2) % 4) * 0.22, 1);
+      scene.add(patch);
+    }
+  }
+
+  private addStreetProps(
+    scene: THREE.Scene,
+    position: THREE.Vector3,
+    width: number,
+    depth: number,
+    seed: number,
+  ): void {
+    const postMat = new THREE.MeshStandardMaterial({
+      color: 0x58636f,
+      metalness: 0.38,
+      roughness: 0.42,
+    });
+    const lampMat = new THREE.MeshBasicMaterial({ color: seed % 2 === 0 ? 0x36f1cd : 0xffd166 });
+    const planterMat = new THREE.MeshStandardMaterial({ color: 0x3f4d3e, roughness: 0.9 });
+    const sidewalkZ = position.z + depth / 2 + 4.4;
+    for (const x of [position.x - width * 0.35, position.x + width * 0.35]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 4.4, 8), postMat);
+      post.position.set(x, 2.2, sidewalkZ);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8), lampMat);
+      lamp.position.set(x, 4.55, sidewalkZ);
+      const planter = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.6, 0.9), planterMat);
+      planter.position.set(x + (seed % 2 === 0 ? 2.2 : -2.2), 0.42, sidewalkZ + 0.8);
+      post.castShadow = true;
+      planter.castShadow = true;
+      scene.add(post, lamp, planter);
     }
   }
 }
