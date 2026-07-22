@@ -12,6 +12,7 @@ export class NPCManager {
           new THREE.Vector3(((i * 47) % 340) - 170, 1, ((i * 83) % 340) - 170),
           colors[i % colors.length] ?? 0xffffff,
           scene,
+          i,
         ),
       );
   }
