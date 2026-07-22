@@ -1,11 +1,20 @@
 import * as THREE from 'three';
 import { AIStateMachine } from './AIStateMachine';
 
+type JointedLimb = {
+  root: THREE.Group;
+  lower: THREE.Group;
+};
+
 export class NPC {
   public readonly mesh = new THREE.Group();
   private readonly ai = new AIStateMachine();
-  private readonly arms: THREE.Object3D[] = [];
-  private readonly legs: THREE.Object3D[] = [];
+  private readonly shoulders = new THREE.Group();
+  private readonly hips = new THREE.Group();
+  private readonly arms: THREE.Group[] = [];
+  private readonly forearms: THREE.Group[] = [];
+  private readonly legs: THREE.Group[] = [];
+  private readonly shins: THREE.Group[] = [];
   private readonly shoes: THREE.Object3D[] = [];
   private readonly head: THREE.Object3D;
   private readonly torso: THREE.Object3D;
@@ -18,34 +27,43 @@ export class NPC {
     const skin = new THREE.MeshStandardMaterial({ color: 0xbe875e, roughness: 0.76 });
     const hair = new THREE.MeshStandardMaterial({ color: 0x151210, roughness: 0.6 });
     const glow = new THREE.MeshBasicMaterial({ color: 0x7efcff });
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.9, 4, 8), jacket);
-    torso.position.y = 0.82;
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.78, 6, 10), jacket);
+    torso.scale.set(1.04, 1, 0.66);
+    torso.position.y = 0.98;
     this.torso = torso;
-    this.head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 9), skin);
-    this.head.position.y = 1.58;
+    const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.46, 0.09), cloth);
+    shirt.position.set(0, 0.99, 0.25);
+    this.head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12), skin);
+    this.head.scale.set(0.92, 1.08, 0.9);
+    this.head.position.y = 1.68;
     const cap = new THREE.Mesh(
-      new THREE.SphereGeometry(0.29, 12, 6, 0, Math.PI * 2, 0, 1.45),
+      new THREE.SphereGeometry(0.26, 16, 8, 0, Math.PI * 2, 0, 1.45),
       hair,
     );
-    cap.position.y = 1.67;
+    cap.position.y = 1.76;
     const bag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.42, 0.12), cloth);
     bag.position.set(-0.32, 0.88, -0.23);
+    this.shoulders.position.y = 1.22;
+    this.hips.position.y = 0.5;
     for (const side of [-1, 1]) {
-      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.58, 3, 6), jacket);
-      arm.position.set(side * 0.42, 0.78, 0);
-      arm.rotation.z = side * 0.16;
-      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.72, 3, 6), cloth);
-      leg.position.set(side * 0.14, 0.05, 0);
+      const arm = this.createJointedLimb(side * 0.42, 0, 0, 0.075, 0.38, 0.34, jacket, skin);
+      const leg = this.createJointedLimb(side * 0.15, 0, 0, 0.09, 0.46, 0.43, cloth, cloth);
       const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.32), cloth);
-      shoe.position.set(side * 0.14, -0.36, 0.06);
-      this.mesh.add(arm, leg, shoe);
-      this.arms.push(arm);
-      this.legs.push(leg);
+      shoe.position.set(0, -0.46, 0.08);
+      arm.root.rotation.z = side * 0.18;
+      leg.root.rotation.z = side * 0.03;
+      leg.lower.add(shoe);
+      this.shoulders.add(arm.root);
+      this.hips.add(leg.root);
+      this.arms.push(arm.root);
+      this.forearms.push(arm.lower);
+      this.legs.push(leg.root);
+      this.shins.push(leg.lower);
       this.shoes.push(shoe);
     }
     const badge = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.08), glow);
     badge.position.set(0.16, 1.05, 0.31);
-    this.mesh.add(torso, this.head, cap, bag, badge);
+    this.mesh.add(this.hips, torso, shirt, this.shoulders, this.head, cap, bag, badge);
     this.mesh.position.copy(position);
     this.mesh.position.y = 0.45;
     this.mesh.traverse((part) => {
@@ -96,10 +114,22 @@ export class NPC {
     const energy = state === 'flee' ? 1 : speed > 0 ? 0.55 : 0.12;
     const stride = Math.sin(this.pace + this.mesh.id) * energy;
     const counterStride = Math.sin(this.pace + this.mesh.id + Math.PI) * energy;
+    const kneeLift = Math.max(0, Math.sin(this.pace + this.mesh.id - Math.PI * 0.2));
+    const counterKneeLift = Math.max(0, Math.sin(this.pace + this.mesh.id + Math.PI * 0.8));
+    const hipSway = Math.sin(this.pace + this.mesh.id) * 0.04 * energy;
+    const shoulderSway = Math.sin(this.pace + this.mesh.id + Math.PI) * 0.035 * energy;
     this.mesh.position.y = 0.45 + Math.abs(Math.sin(this.pace + this.mesh.id)) * 0.035 * energy;
+    this.hips.position.y = 0.5 + Math.abs(Math.sin(this.pace + this.mesh.id)) * 0.018 * energy;
+    this.hips.rotation.z = THREE.MathUtils.damp(this.hips.rotation.z, hipSway, 8, delta);
+    this.shoulders.rotation.z = THREE.MathUtils.damp(
+      this.shoulders.rotation.z,
+      shoulderSway,
+      8,
+      delta,
+    );
     this.torso.rotation.z = THREE.MathUtils.damp(
       this.torso.rotation.z,
-      -this.turnVelocity * 0.45,
+      shoulderSway * 0.45 - this.turnVelocity * 0.45,
       8,
       delta,
     );
@@ -118,11 +148,13 @@ export class NPC {
       delta,
     );
     this.arms.forEach((arm, index) => {
+      const forearm = this.forearms[index];
+      if (!forearm) return;
       const side = index === 0 ? -1 : 1;
       const phase = index === 0 ? stride : counterStride;
       arm.rotation.x = THREE.MathUtils.damp(
         arm.rotation.x,
-        side * phase * 0.48 - energy * 0.06,
+        -phase * 0.58 - energy * 0.06,
         10,
         delta,
       );
@@ -132,21 +164,71 @@ export class NPC {
         8,
         delta,
       );
+      forearm.rotation.x = THREE.MathUtils.damp(
+        forearm.rotation.x,
+        -0.12 - Math.max(0, phase) * 0.22,
+        9,
+        delta,
+      );
     });
     this.legs.forEach((leg, index) => {
+      const shin = this.shins[index];
+      if (!shin) return;
       const side = index === 0 ? -1 : 1;
       const phase = index === 0 ? stride : counterStride;
-      leg.rotation.x = THREE.MathUtils.damp(leg.rotation.x, -side * phase * 0.38, 10, delta);
-    });
-    this.shoes.forEach((shoe, index) => {
-      const side = index === 0 ? -1 : 1;
-      const phase = index === 0 ? stride : counterStride;
-      shoe.rotation.x = THREE.MathUtils.damp(
-        shoe.rotation.x,
-        -side * phase * 0.2 + Math.max(0, phase) * 0.04,
+      const lift = index === 0 ? kneeLift : counterKneeLift;
+      leg.rotation.x = THREE.MathUtils.damp(leg.rotation.x, -phase * 0.5, 10, delta);
+      leg.rotation.z = THREE.MathUtils.damp(
+        leg.rotation.z,
+        side * (0.03 - energy * 0.01),
+        8,
+        delta,
+      );
+      shin.rotation.x = THREE.MathUtils.damp(
+        shin.rotation.x,
+        lift * (state === 'flee' ? 0.58 : 0.34) * energy,
         10,
         delta,
       );
     });
+    this.shoes.forEach((shoe, index) => {
+      const phase = index === 0 ? stride : counterStride;
+      shoe.rotation.x = THREE.MathUtils.damp(
+        shoe.rotation.x,
+        Math.max(0, phase) * 0.18 - Math.max(0, -phase) * 0.08,
+        10,
+        delta,
+      );
+      shoe.position.z = 0.08 + Math.max(0, phase) * 0.05;
+    });
+  }
+
+  private createJointedLimb(
+    x: number,
+    y: number,
+    z: number,
+    radius: number,
+    upperLength: number,
+    lowerLength: number,
+    upperMaterial: THREE.Material,
+    lowerMaterial: THREE.Material,
+  ): JointedLimb {
+    const root = new THREE.Group();
+    root.position.set(x, y, z);
+    const upper = new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius, upperLength, 5, 8),
+      upperMaterial,
+    );
+    upper.position.y = -upperLength * 0.5;
+    const lower = new THREE.Group();
+    lower.position.y = -upperLength;
+    const lowerMesh = new THREE.Mesh(
+      new THREE.CapsuleGeometry(radius * 0.86, lowerLength, 5, 8),
+      lowerMaterial,
+    );
+    lowerMesh.position.y = -lowerLength * 0.5;
+    lower.add(lowerMesh);
+    root.add(upper, lower);
+    return { root, lower };
   }
 }
