@@ -138,7 +138,7 @@ export class Game {
         this.hud.notify('위험 운전 신고 접수');
       }
       this.world.update(delta);
-      this.player.sync();
+      this.player.sync(delta);
       const focus = this.vehicles.active?.mesh.position ?? this.player.mesh.position;
       this.playerCamera.update(focus, delta);
       this.npcs.update(delta, focus);

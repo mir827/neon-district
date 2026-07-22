@@ -8,8 +8,10 @@ export class NPC {
   private readonly legs: THREE.Object3D[] = [];
   private readonly shoes: THREE.Object3D[] = [];
   private readonly head: THREE.Object3D;
+  private readonly torso: THREE.Object3D;
   private direction = Math.random() * Math.PI * 2;
   private pace = 0;
+  private turnVelocity = 0;
   public constructor(position: THREE.Vector3, color: number, scene: THREE.Scene) {
     const jacket = new THREE.MeshStandardMaterial({ color, roughness: 0.68 });
     const cloth = new THREE.MeshStandardMaterial({ color: 0x1d2430, roughness: 0.82 });
@@ -18,6 +20,7 @@ export class NPC {
     const glow = new THREE.MeshBasicMaterial({ color: 0x7efcff });
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.9, 4, 8), jacket);
     torso.position.y = 0.82;
+    this.torso = torso;
     this.head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 12, 9), skin);
     this.head.position.y = 1.58;
     const cap = new THREE.Mesh(
@@ -62,18 +65,20 @@ export class NPC {
     const previousDirection = this.direction;
     if (state === 'flee') {
       const desired = Math.atan2(this.mesh.position.x - threat.x, this.mesh.position.z - threat.z);
-      this.direction = THREE.MathUtils.lerp(previousDirection, desired, Math.min(1, delta * 4.5));
+      this.direction = THREE.MathUtils.damp(previousDirection, desired, 4.5, delta);
     } else if (Math.random() < delta * 0.15) this.direction += (Math.random() - 0.5) * 1.5;
+    this.turnVelocity = THREE.MathUtils.damp(
+      this.turnVelocity,
+      THREE.MathUtils.clamp(this.direction - previousDirection, -0.35, 0.35),
+      8,
+      delta,
+    );
     const speed = state === 'flee' ? 6 : 2.1;
     this.mesh.position.x += Math.sin(this.direction) * speed * delta;
     this.mesh.position.z += Math.cos(this.direction) * speed * delta;
     this.mesh.position.x = THREE.MathUtils.clamp(this.mesh.position.x, -190, 190);
     this.mesh.position.z = THREE.MathUtils.clamp(this.mesh.position.z, -190, 190);
-    this.mesh.rotation.y = THREE.MathUtils.lerp(
-      previousDirection,
-      this.direction,
-      Math.min(1, delta * 6),
-    );
+    this.mesh.rotation.y = THREE.MathUtils.damp(previousDirection, this.direction, 7, delta);
     this.animate(delta, speed, state);
   }
   public speak(): string {
@@ -90,20 +95,58 @@ export class NPC {
     this.pace += delta * (state === 'flee' ? 10 : speed > 0 ? 5.2 : 1.2);
     const energy = state === 'flee' ? 1 : speed > 0 ? 0.55 : 0.12;
     const stride = Math.sin(this.pace + this.mesh.id) * energy;
+    const counterStride = Math.sin(this.pace + this.mesh.id + Math.PI) * energy;
     this.mesh.position.y = 0.45 + Math.abs(Math.sin(this.pace + this.mesh.id)) * 0.035 * energy;
-    this.head.rotation.y = Math.sin(this.pace * 0.55 + this.mesh.id) * 0.08;
+    this.torso.rotation.z = THREE.MathUtils.damp(
+      this.torso.rotation.z,
+      -this.turnVelocity * 0.45,
+      8,
+      delta,
+    );
+    this.torso.rotation.x = THREE.MathUtils.damp(
+      this.torso.rotation.x,
+      state === 'flee' ? -0.08 : -0.025 * energy,
+      7,
+      delta,
+    );
+    this.head.rotation.y =
+      Math.sin(this.pace * 0.55 + this.mesh.id) * (state === 'idle' ? 0.14 : 0.07);
+    this.head.rotation.z = THREE.MathUtils.damp(
+      this.head.rotation.z,
+      this.turnVelocity * 0.22,
+      8,
+      delta,
+    );
     this.arms.forEach((arm, index) => {
       const side = index === 0 ? -1 : 1;
-      arm.rotation.x = side * stride * 0.42;
-      arm.rotation.z = side * 0.16;
+      const phase = index === 0 ? stride : counterStride;
+      arm.rotation.x = THREE.MathUtils.damp(
+        arm.rotation.x,
+        side * phase * 0.48 - energy * 0.06,
+        10,
+        delta,
+      );
+      arm.rotation.z = THREE.MathUtils.damp(
+        arm.rotation.z,
+        side * (0.16 + energy * 0.035),
+        8,
+        delta,
+      );
     });
     this.legs.forEach((leg, index) => {
       const side = index === 0 ? -1 : 1;
-      leg.rotation.x = -side * stride * 0.34;
+      const phase = index === 0 ? stride : counterStride;
+      leg.rotation.x = THREE.MathUtils.damp(leg.rotation.x, -side * phase * 0.38, 10, delta);
     });
     this.shoes.forEach((shoe, index) => {
       const side = index === 0 ? -1 : 1;
-      shoe.rotation.x = -side * stride * 0.16;
+      const phase = index === 0 ? stride : counterStride;
+      shoe.rotation.x = THREE.MathUtils.damp(
+        shoe.rotation.x,
+        -side * phase * 0.2 + Math.max(0, phase) * 0.04,
+        10,
+        delta,
+      );
     });
   }
 }

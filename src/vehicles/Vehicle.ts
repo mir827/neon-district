@@ -20,6 +20,7 @@ export class Vehicle {
   private readonly frontWheels: THREE.Group[] = [];
   private wheelSpin = 0;
   private lean = 0;
+  private suspensionPhase = Math.random() * Math.PI * 2;
 
   public constructor(
     public readonly spec: VehicleSpec,
@@ -58,7 +59,9 @@ export class Vehicle {
     plate.position.set(0, 0.13, 2.83);
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.28), darkTrim);
     spoiler.position.set(0, 1.08, -2.75);
-    this.bodyRoot.add(body, hood, trunk, cabin, roof, grille, plate, spoiler);
+    const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(3.62, 0.18, 4.85), darkTrim);
+    sideSkirt.position.set(0, -0.46, -0.04);
+    this.bodyRoot.add(body, hood, trunk, cabin, roof, grille, plate, spoiler, sideSkirt);
     for (const x of [-1.08, 1.08]) {
       const headlamp = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.18, 0.06), lightFront);
       headlamp.position.set(x, 0.48, 2.78);
@@ -127,24 +130,33 @@ export class Vehicle {
 
   private animateChassis(delta: number, steering: number, previousSpeed: number): void {
     this.wheelSpin += this.speed * delta * 1.85;
+    this.suspensionPhase += delta * (1.4 + Math.abs(this.speed) * 0.12);
     const steerAngle = THREE.MathUtils.clamp(steering, -1, 1) * 0.42;
     const accelerationPitch = THREE.MathUtils.clamp(
       (this.speed - previousSpeed) * 0.018,
       -0.08,
       0.08,
     );
-    const targetLean = -steering * Math.min(0.22, Math.abs(this.speed) * 0.012);
+    const lateralWeight = steering * Math.min(0.26, Math.abs(this.speed) * 0.014);
+    const targetLean = -lateralWeight;
     this.lean = THREE.MathUtils.damp(this.lean, targetLean, 6.5, delta);
-    this.bodyRoot.rotation.z = this.lean;
+    this.bodyRoot.rotation.z = THREE.MathUtils.damp(this.bodyRoot.rotation.z, this.lean, 9, delta);
     this.bodyRoot.rotation.x = THREE.MathUtils.damp(
       this.bodyRoot.rotation.x,
-      -accelerationPitch,
+      -accelerationPitch +
+        Math.sin(this.suspensionPhase * 0.7) * Math.min(0.018, Math.abs(this.speed) * 0.0007),
       6,
       delta,
     );
     this.bodyRoot.position.y =
-      0.02 + Math.sin(this.wheelSpin * 0.35) * Math.min(0.035, Math.abs(this.speed) * 0.0015);
-    for (const wheel of this.wheels) wheel.rotation.x = this.wheelSpin;
+      0.02 + Math.sin(this.suspensionPhase) * Math.min(0.045, Math.abs(this.speed) * 0.0018);
+    this.wheels.forEach((wheel, index) => {
+      wheel.rotation.x = this.wheelSpin;
+      wheel.position.y =
+        -0.45 +
+        Math.sin(this.suspensionPhase + index * 0.9) *
+          Math.min(0.04, Math.abs(this.speed) * 0.0016);
+    });
     for (const wheel of this.frontWheels)
       wheel.rotation.y = THREE.MathUtils.damp(wheel.rotation.y, steerAngle, 10, delta);
   }

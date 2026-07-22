@@ -12,8 +12,10 @@ export class Player {
   private readonly legs: THREE.Object3D[] = [];
   private readonly boots: THREE.Object3D[] = [];
   private readonly head: THREE.Object3D;
+  private readonly torso: THREE.Object3D;
   private lastPosition = new THREE.Vector3();
   private animationTime = 0;
+  private smoothedSpeed = 0;
 
   public constructor(scene: THREE.Scene, physics: CANNON.World) {
     const suit = new THREE.MeshStandardMaterial({ color: 0xf4f5f7, roughness: 0.62 });
@@ -33,6 +35,7 @@ export class Player {
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 1.15, 5, 12), suit);
     torso.scale.set(1, 1.05, 0.7);
     torso.position.y = 0.9;
+    this.torso = torso;
     const chest = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.42, 0.16), armor);
     chest.position.set(0, 1.14, 0.36);
     this.head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 18, 12), skin);
@@ -75,15 +78,22 @@ export class Player {
     this.lastPosition.copy(this.mesh.position);
   }
 
-  public sync(): void {
+  public sync(delta = 1 / 60): void {
     this.mesh.position.set(this.body.position.x, this.body.position.y - 0.2, this.body.position.z);
     this.mesh.visible = this.inVehicleId === null;
     const frameMove = this.mesh.position.clone().sub(this.lastPosition);
-    const horizontalSpeed = Math.hypot(frameMove.x, frameMove.z) * 60;
+    const horizontalSpeed = Math.hypot(frameMove.x, frameMove.z) / Math.max(delta, 1 / 120);
+    this.smoothedSpeed = THREE.MathUtils.damp(this.smoothedSpeed, horizontalSpeed, 12, delta);
     if (horizontalSpeed > 0.08) {
-      this.mesh.rotation.y = Math.atan2(frameMove.x, frameMove.z);
+      const targetYaw = Math.atan2(frameMove.x, frameMove.z);
+      this.mesh.rotation.y = THREE.MathUtils.damp(
+        this.mesh.rotation.y,
+        targetYaw,
+        this.smoothedSpeed > 5 ? 18 : 11,
+        delta,
+      );
     }
-    this.animate(Math.min(horizontalSpeed, 9));
+    this.animate(Math.min(this.smoothedSpeed, 9), delta);
     this.lastPosition.copy(this.mesh.position);
   }
 
@@ -93,30 +103,66 @@ export class Player {
     this.lastPosition.set(x, y - 0.2, z);
   }
 
-  private animate(speed: number): void {
-    this.animationTime += 0.016 * (0.6 + speed * 0.32);
-    const stride = Math.sin(this.animationTime * 7.2) * THREE.MathUtils.clamp(speed / 7, 0, 1);
+  private animate(speed: number, delta: number): void {
+    const gait = THREE.MathUtils.clamp(speed / 7, 0, 1);
+    this.animationTime += delta * (3.8 + speed * 1.05);
+    const stride = Math.sin(this.animationTime) * gait;
+    const counterStride = Math.sin(this.animationTime + Math.PI) * gait;
     const bob =
-      Math.abs(Math.sin(this.animationTime * 7.2)) * 0.055 * THREE.MathUtils.clamp(speed / 5, 0, 1);
+      Math.abs(Math.sin(this.animationTime)) * 0.06 * THREE.MathUtils.clamp(speed / 5, 0, 1);
+    const shoulderRoll = Math.sin(this.animationTime * 0.5) * 0.035 * gait;
     this.mesh.position.y += bob;
-    this.head.rotation.x = THREE.MathUtils.damp(
-      this.head.rotation.x,
+    this.torso.rotation.x = THREE.MathUtils.damp(
+      this.torso.rotation.x,
       speed > 0.2 ? -0.05 : 0,
       8,
-      0.016,
+      delta,
+    );
+    this.torso.rotation.z = THREE.MathUtils.damp(this.torso.rotation.z, shoulderRoll, 7, delta);
+    this.head.rotation.x = THREE.MathUtils.damp(
+      this.head.rotation.x,
+      speed > 0.2 ? -0.07 : 0,
+      8,
+      delta,
+    );
+    this.head.rotation.z = THREE.MathUtils.damp(
+      this.head.rotation.z,
+      -shoulderRoll * 0.6,
+      7,
+      delta,
     );
     this.arms.forEach((arm, index) => {
       const side = index === 0 ? -1 : 1;
-      arm.rotation.x = side * stride * 0.54;
-      arm.rotation.z = side * 0.16;
+      const phase = index === 0 ? stride : counterStride;
+      arm.rotation.x = THREE.MathUtils.damp(
+        arm.rotation.x,
+        side * phase * 0.62 - gait * 0.12,
+        14,
+        delta,
+      );
+      arm.rotation.z = THREE.MathUtils.damp(arm.rotation.z, side * (0.16 + gait * 0.06), 10, delta);
     });
     this.legs.forEach((leg, index) => {
       const side = index === 0 ? -1 : 1;
-      leg.rotation.x = -side * stride * 0.46;
+      const phase = index === 0 ? stride : counterStride;
+      leg.rotation.x = THREE.MathUtils.damp(leg.rotation.x, -side * phase * 0.5, 14, delta);
+      leg.rotation.z = THREE.MathUtils.damp(
+        leg.rotation.z,
+        side * Math.max(0, 0.025 - gait * 0.02),
+        8,
+        delta,
+      );
     });
     this.boots.forEach((boot, index) => {
       const side = index === 0 ? -1 : 1;
-      boot.rotation.x = -side * stride * 0.18;
+      const phase = index === 0 ? stride : counterStride;
+      boot.rotation.x = THREE.MathUtils.damp(
+        boot.rotation.x,
+        -side * phase * 0.24 + Math.max(0, phase) * 0.08,
+        14,
+        delta,
+      );
+      boot.position.z = 0.08 + Math.max(0, phase) * 0.05;
     });
   }
 }

@@ -77,7 +77,7 @@ export class CityGenerator {
   }
 
   private makeRoads(scene: THREE.Scene): void {
-    const material = new THREE.MeshStandardMaterial({ color: 0x222a35, roughness: 1 });
+    const material = new THREE.MeshStandardMaterial({ color: 0x202a32, roughness: 1 });
     for (let x = -160; x <= 160; x += 80) this.addRoad(scene, material, x, 0, 20, 400);
     for (let z = -160; z <= 160; z += 80) this.addRoad(scene, material, 0, z, 400, 20);
     this.addRoad(scene, material, 0, -175, 400, 24);
@@ -92,6 +92,7 @@ export class CityGenerator {
     for (const road of this.roads) {
       this.addCurb(scene, curbMaterial, road);
     }
+    this.addCrosswalks(scene);
   }
 
   private addRoad(
@@ -144,8 +145,13 @@ export class CityGenerator {
 
   private makeBuildings(scene: THREE.Scene): void {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const materials = [0x30475e, 0x3f4d67, 0x4d426d, 0x315c60].map(
-      (color) => new THREE.MeshStandardMaterial({ color, metalness: 0.08, roughness: 0.78 }),
+    const materials = [0x30475e, 0x3f4d67, 0x4d426d, 0x315c60, 0x5a4c58, 0x37515a].map(
+      (color, index) =>
+        new THREE.MeshStandardMaterial({
+          color,
+          metalness: index % 2 === 0 ? 0.08 : 0.16,
+          roughness: 0.72 + (index % 3) * 0.06,
+        }),
     );
     for (let gx = -2; gx <= 2; gx += 1)
       for (let gz = -2; gz <= 2; gz += 1) {
@@ -153,14 +159,16 @@ export class CityGenerator {
         const centerX = gx * 80 + 40;
         const centerZ = gz * 80 + 40;
         for (let i = 0; i < 3; i += 1) {
-          const width = 16 + ((gx + gz + i + 8) % 3) * 5;
-          const depth = 15 + ((gx * gz + i + 8) % 3) * 4;
-          const height = 12 + ((Math.abs(gx) + Math.abs(gz) + i) % 5) * 9;
+          const width = 15 + ((gx + gz + i + 8) % 3) * 5 + ((gx * 11 + i) % 2) * 2;
+          const depth = 14 + ((gx * gz + i + 8) % 3) * 4 + ((gz * 7 + i) % 2) * 1.8;
+          const height =
+            12 + ((Math.abs(gx) + Math.abs(gz) + i) % 5) * 9 + ((gx - gz + i + 6) % 3) * 2;
           const mesh = new THREE.Mesh(geometry, materials[(gx + gz + i + 8) % materials.length]);
-          const x = centerX + (i - 1) * 20;
-          const z = centerZ + ((i % 2) * 2 - 1) * 10;
+          const x = centerX + (i - 1) * 20 + ((gx + i) % 2) * 3;
+          const z = centerZ + ((i % 2) * 2 - 1) * (9 + ((gz + i + 5) % 3));
           mesh.scale.set(width, height, depth);
           mesh.position.set(x, height / 2, z);
+          mesh.rotation.y = (((gx * 13 + gz * 5 + i) % 5) - 2) * 0.018;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           scene.add(mesh);
@@ -243,6 +251,32 @@ export class CityGenerator {
       const vent = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.18), trim);
       vent.position.set(position.x + x, height + 0.65, position.z - depth * 0.25);
       scene.add(vent);
+    }
+    const awningMat = new THREE.MeshStandardMaterial({
+      color: seed % 3 === 0 ? 0x2bd4a6 : 0xb6c6d8,
+      metalness: 0.18,
+      roughness: 0.46,
+    });
+    const awning = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.min(9, width * 0.66), 0.28, 1.35),
+      awningMat,
+    );
+    awning.position.set(position.x, 3.05, position.z + depth / 2 + 0.78);
+    awning.rotation.x = -0.12;
+    awning.castShadow = true;
+    scene.add(awning);
+    const conduitMat = new THREE.MeshStandardMaterial({
+      color: 0x7b8994,
+      metalness: 0.42,
+      roughness: 0.38,
+    });
+    for (const x of [-width * 0.42, width * 0.42]) {
+      const conduit = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, height * 0.72, 6),
+        conduitMat,
+      );
+      conduit.position.set(position.x + x, height * 0.52, position.z + depth / 2 + 0.1);
+      scene.add(conduit);
     }
   }
 
@@ -379,6 +413,17 @@ export class CityGenerator {
       patch.scale.set(1.5 + (i % 4) * 0.35, 0.7 + ((i + 2) % 4) * 0.22, 1);
       scene.add(patch);
     }
+    const drainMat = new THREE.MeshStandardMaterial({
+      color: 0x11181e,
+      metalness: 0.35,
+      roughness: 0.62,
+    });
+    for (let i = 0; i < 22; i += 1) {
+      const drain = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.04, 0.55), drainMat);
+      drain.position.set(-180 + ((i * 41) % 360), 0.18, -170 + ((i * 67) % 340));
+      drain.rotation.y = i % 2 === 0 ? 0 : Math.PI / 2;
+      scene.add(drain);
+    }
   }
 
   private addStreetProps(
@@ -406,6 +451,42 @@ export class CityGenerator {
       post.castShadow = true;
       planter.castShadow = true;
       scene.add(post, lamp, planter);
+    }
+    const utilityMat = new THREE.MeshStandardMaterial({
+      color: 0x26323d,
+      metalness: 0.12,
+      roughness: 0.74,
+    });
+    const crateMat = new THREE.MeshStandardMaterial({
+      color: seed % 2 === 0 ? 0x77624d : 0x3c5663,
+      roughness: 0.84,
+    });
+    const kiosk = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.65, 0.9), utilityMat);
+    kiosk.position.set(position.x - width * 0.5, 0.86, sidewalkZ - 1.4);
+    kiosk.rotation.y = ((seed % 3) - 1) * 0.18;
+    kiosk.castShadow = true;
+    scene.add(kiosk);
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 1.1), crateMat);
+    crate.position.set(position.x + width * 0.46, 0.5, sidewalkZ + 1.5);
+    crate.rotation.y = (seed % 5) * 0.14;
+    crate.castShadow = true;
+    scene.add(crate);
+  }
+
+  private addCrosswalks(scene: THREE.Scene): void {
+    const paint = new THREE.MeshBasicMaterial({
+      color: 0xd8dde0,
+      transparent: true,
+      opacity: 0.72,
+    });
+    for (const center of [-160, -80, 0, 80, 160]) {
+      for (let stripe = -3; stripe <= 3; stripe += 1) {
+        const northSouth = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 9), paint);
+        northSouth.position.set(center + stripe * 2.4, 0.16, 0);
+        const eastWest = new THREE.Mesh(new THREE.BoxGeometry(9, 0.05, 1.2), paint);
+        eastWest.position.set(0, 0.17, center + stripe * 2.4);
+        scene.add(northSouth, eastWest);
+      }
     }
   }
 }
