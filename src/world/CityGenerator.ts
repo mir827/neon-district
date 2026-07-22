@@ -55,18 +55,19 @@ export class CityGenerator {
   public build(scene: THREE.Scene): void {
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(420, 420),
-      new THREE.MeshStandardMaterial({ color: 0x172433, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ color: 0x182232, roughness: 0.98 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(500, 105),
-      new THREE.MeshStandardMaterial({ color: 0x064d68, metalness: 0.2, roughness: 0.45 }),
+      new THREE.MeshStandardMaterial({ color: 0x075771, metalness: 0.28, roughness: 0.32 }),
     );
     water.rotation.x = -Math.PI / 2;
     water.position.set(0, -0.3, -250);
     scene.add(water);
+    this.addHarborDetails(scene);
     this.makeRoads(scene);
     this.makeBuildings(scene);
     this.makePark(scene);
@@ -79,6 +80,17 @@ export class CityGenerator {
     for (let x = -160; x <= 160; x += 80) this.addRoad(scene, material, x, 0, 20, 400);
     for (let z = -160; z <= 160; z += 80) this.addRoad(scene, material, 0, z, 400, 20);
     this.addRoad(scene, material, 0, -175, 400, 24);
+    const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xe7d66d });
+    for (let x = -160; x <= 160; x += 80) {
+      for (let z = -185; z <= 185; z += 22) this.addRoadStripe(scene, stripeMaterial, x, z, 1.1, 8);
+    }
+    for (let z = -160; z <= 160; z += 80) {
+      for (let x = -185; x <= 185; x += 22) this.addRoadStripe(scene, stripeMaterial, x, z, 8, 1.1);
+    }
+    const curbMaterial = new THREE.MeshStandardMaterial({ color: 0x65717c, roughness: 0.85 });
+    for (const road of this.roads) {
+      this.addCurb(scene, curbMaterial, road);
+    }
   }
 
   private addRoad(
@@ -94,6 +106,39 @@ export class CityGenerator {
     road.receiveShadow = true;
     scene.add(road);
     this.roads.push({ x, z, w, d });
+  }
+
+  private addRoadStripe(
+    scene: THREE.Scene,
+    material: THREE.Material,
+    x: number,
+    z: number,
+    w: number,
+    d: number,
+  ): void {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), material);
+    stripe.position.set(x, 0.14, z);
+    scene.add(stripe);
+  }
+
+  private addCurb(
+    scene: THREE.Scene,
+    material: THREE.Material,
+    road: { x: number; z: number; w: number; d: number },
+  ): void {
+    const horizontal = road.w > road.d;
+    const size = horizontal ? [road.w, 0.18, 0.7] : [0.7, 0.18, road.d];
+    const offset = horizontal ? road.d / 2 + 0.55 : road.w / 2 + 0.55;
+    for (const side of [-1, 1]) {
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+      curb.position.set(
+        road.x + (horizontal ? 0 : side * offset),
+        0.18,
+        road.z + (horizontal ? side * offset : 0),
+      );
+      curb.receiveShadow = true;
+      scene.add(curb);
+    }
   }
 
   private makeBuildings(scene: THREE.Scene): void {
@@ -120,6 +165,7 @@ export class CityGenerator {
           scene.add(mesh);
           this.colliders.push(new THREE.Box3().setFromObject(mesh));
           this.addWindowGrid(scene, mesh.position, width, height, depth);
+          this.addFacadeDetails(scene, mesh.position, width, height, depth, i);
         }
       }
   }
@@ -152,6 +198,48 @@ export class CityGenerator {
     scene.add(windows);
   }
 
+  private addFacadeDetails(
+    scene: THREE.Scene,
+    position: THREE.Vector3,
+    width: number,
+    height: number,
+    depth: number,
+    seed: number,
+  ): void {
+    const trim = new THREE.MeshStandardMaterial({
+      color: 0x95a4b4,
+      metalness: 0.25,
+      roughness: 0.5,
+    });
+    const doorMat = new THREE.MeshStandardMaterial({
+      color: 0x111820,
+      metalness: 0.35,
+      roughness: 0.28,
+    });
+    const signMat = new THREE.MeshBasicMaterial({ color: seed % 2 === 0 ? 0xffd166 : 0x36f1cd });
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(width + 1, 0.45, depth + 1), trim);
+    roof.position.set(position.x, height + 0.28, position.z);
+    roof.castShadow = true;
+    scene.add(roof);
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.min(3.6, width * 0.34), 3.2, 0.18),
+      doorMat,
+    );
+    door.position.set(position.x, 1.6, position.z + depth / 2 + 0.11);
+    scene.add(door);
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.min(8, width * 0.62), 0.7, 0.12),
+      signMat,
+    );
+    sign.position.set(position.x, 4.15, position.z + depth / 2 + 0.15);
+    scene.add(sign);
+    for (const x of [-width * 0.34, width * 0.34]) {
+      const vent = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 0.18), trim);
+      vent.position.set(position.x + x, height + 0.65, position.z - depth * 0.25);
+      scene.add(vent);
+    }
+  }
+
   private makePark(scene: THREE.Scene): void {
     const park = new THREE.Mesh(
       new THREE.BoxGeometry(58, 0.3, 58),
@@ -178,6 +266,17 @@ export class CityGenerator {
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
     scene.add(trunks, crowns);
+    const pathMat = new THREE.MeshStandardMaterial({ color: 0xb7a476, roughness: 0.9 });
+    const path = new THREE.Mesh(new THREE.BoxGeometry(48, 0.08, 4), pathMat);
+    path.position.set(-80, 0.32, -80);
+    scene.add(path);
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x76523b, roughness: 0.75 });
+    for (const z of [-96, -64]) {
+      const bench = new THREE.Mesh(new THREE.BoxGeometry(7, 0.45, 1.1), benchMat);
+      bench.position.set(-80, 0.7, z);
+      bench.castShadow = true;
+      scene.add(bench);
+    }
   }
 
   private makeLandmarks(scene: THREE.Scene): void {
@@ -213,6 +312,28 @@ export class CityGenerator {
       sign.position.copy(interior.entrance);
       sign.position.y = 0.6;
       scene.add(sign);
+    }
+  }
+
+  private addHarborDetails(scene: THREE.Scene): void {
+    const pierMat = new THREE.MeshStandardMaterial({ color: 0x4b3f35, roughness: 0.82 });
+    const poleMat = new THREE.MeshStandardMaterial({
+      color: 0x6c7c86,
+      metalness: 0.35,
+      roughness: 0.45,
+    });
+    for (const x of [-120, -40, 40, 120]) {
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(42, 0.5, 8), pierMat);
+      pier.position.set(x, 0.05, -203);
+      pier.castShadow = true;
+      pier.receiveShadow = true;
+      scene.add(pier);
+      for (const side of [-1, 1]) {
+        const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 1.3, 10), poleMat);
+        bollard.position.set(x + side * 15, 0.7, -198);
+        bollard.castShadow = true;
+        scene.add(bollard);
+      }
     }
   }
 }
