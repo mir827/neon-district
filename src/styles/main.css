@@ -200,6 +200,13 @@ input {
     font-size: 11px;
     top: 12px;
     right: 8px;
+    max-width: 172px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .top > div {
+    padding: 6px 8px;
   }
   .mission {
     top: 50px;
@@ -210,7 +217,7 @@ input {
     width: 105px;
     height: 105px;
     right: 8px;
-    top: 88px;
+    top: 122px;
   }
   #vehicle {
     bottom: 155px;
